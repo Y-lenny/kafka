@@ -17,14 +17,6 @@
  *
  */
 
-def setupGradle() {
-  // Delete gradle cache to workaround cache corruption bugs, see KAFKA-3167
-  dir('.gradle') {
-    deleteDir()
-  }
-  sh './gradlew -version'
-}
-
 def doValidation() {
   sh """
     ./gradlew -PscalaVersion=$SCALA_VERSION clean compileJava compileScala compileTestJava compileTestScala \
@@ -125,7 +117,6 @@ pipeline {
             SCALA_VERSION=2.12
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
             tryStreamsArchetype()
@@ -145,17 +136,16 @@ pipeline {
             SCALA_VERSION=2.13
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
             echo 'Skipping Kafka Streams archetype test for Java 11'
           }
         }
 
-        stage('JDK 15 and Scala 2.13') {
+        stage('JDK 16 and Scala 2.13') {
           agent { label 'ubuntu' }
           tools {
-            jdk 'jdk_15_latest'
+            jdk 'jdk_16_latest'
           }
           options {
             timeout(time: 8, unit: 'HOURS') 
@@ -165,10 +155,9 @@ pipeline {
             SCALA_VERSION=2.13
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
-            echo 'Skipping Kafka Streams archetype test for Java 15'
+            echo 'Skipping Kafka Streams archetype test for Java 16'
           }
         }
 
@@ -182,7 +171,6 @@ pipeline {
             SCALA_VERSION=2.12
           }
           steps {
-            setupGradle()
             doValidation()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
               doTest(env, 'unitTest')
@@ -214,7 +202,6 @@ pipeline {
             SCALA_VERSION=2.13
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
             tryStreamsArchetype()
@@ -238,21 +225,20 @@ pipeline {
             SCALA_VERSION=2.12
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
             echo 'Skipping Kafka Streams archetype test for Java 11'
           }
         }
 
-        stage('JDK 15 and Scala 2.12') {
+        stage('JDK 16 and Scala 2.12') {
           when {
             not { changeRequest() }
             beforeAgent true
           }
           agent { label 'ubuntu' }
           tools {
-            jdk 'jdk_15_latest'
+            jdk 'jdk_16_latest'
           }
           options {
             timeout(time: 8, unit: 'HOURS') 
@@ -262,10 +248,9 @@ pipeline {
             SCALA_VERSION=2.12
           }
           steps {
-            setupGradle()
             doValidation()
             doTest(env)
-            echo 'Skipping Kafka Streams archetype test for Java 15'
+            echo 'Skipping Kafka Streams archetype test for Java 16'
           }
         }
       }

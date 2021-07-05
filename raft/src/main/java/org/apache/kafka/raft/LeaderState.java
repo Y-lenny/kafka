@@ -17,13 +17,19 @@
 package org.apache.kafka.raft;
 
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.raft.internals.BatchAccumulator;
 import org.slf4j.Logger;
+
+import org.apache.kafka.common.message.LeaderChangeMessage;
+import org.apache.kafka.common.message.LeaderChangeMessage.Voter;
+import org.apache.kafka.common.record.ControlRecordUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -35,7 +41,7 @@ import java.util.stream.Collectors;
  * More specifically, the set of unacknowledged voters are targets for BeginQuorumEpoch requests from the leader until
  * they acknowledge the leader.
  */
-public class LeaderState implements EpochState {
+public class LeaderState<T> implements EpochState {
     static final long OBSERVER_SESSION_TIMEOUT_MS = 300_000L;
 
     private final int localId;
@@ -47,6 +53,10 @@ public class LeaderState implements EpochState {
     private final Map<Integer, ReplicaState> observerStates = new HashMap<>();
     private final Set<Integer> grantingVoters = new HashSet<>();
     private final Logger log;
+    private final BatchAccumulator<T> accumulator;
+
+    // This is volatile because resignation can be requested from an external thread.
+    private volatile boolean resignRequested = false;
 
     protected LeaderState(
         int localId,
@@ -54,6 +64,7 @@ public class LeaderState implements EpochState {
         long epochStartOffset,
         Set<Integer> voters,
         Set<Integer> grantingVoters,
+        BatchAccumulator<T> accumulator,
         LogContext logContext
     ) {
         this.localId = localId;
@@ -67,6 +78,39 @@ public class LeaderState implements EpochState {
         }
         this.grantingVoters.addAll(grantingVoters);
         this.log = logContext.logger(LeaderState.class);
+        this.accumulator = Objects.requireNonNull(accumulator, "accumulator must be non-null");
+    }
+
+    public BatchAccumulator<T> accumulator() {
+        return this.accumulator;
+    }
+
+    private static List<Voter> convertToVoters(Set<Integer> voterIds) {
+        return voterIds.stream()
+            .map(follower -> new Voter().setVoterId(follower))
+            .collect(Collectors.toList());
+    }
+
+    public void appendLeaderChangeMessage(long currentTimeMs) {
+        List<Voter> voters = convertToVoters(voterStates.keySet());
+        List<Voter> grantingVoters = convertToVoters(this.grantingVoters());
+
+        LeaderChangeMessage leaderChangeMessage = new LeaderChangeMessage()
+            .setVersion(ControlRecordUtils.LEADER_CHANGE_SCHEMA_HIGHEST_VERSION)
+            .setLeaderId(this.election().leaderId())
+            .setVoters(voters)
+            .setGrantingVoters(grantingVoters);
+        
+        accumulator.appendLeaderChangeMessage(leaderChangeMessage, currentTimeMs);
+        accumulator.forceDrain();
+    }
+
+    public boolean isResignRequested() {
+        return resignRequested;
+    }
+
+    public void requestResign() {
+        this.resignRequested = true;
     }
 
     @Override
@@ -82,10 +126,6 @@ public class LeaderState implements EpochState {
     @Override
     public int epoch() {
         return epoch;
-    }
-
-    public Set<Integer> followers() {
-        return voterStates.keySet().stream().filter(id -> id != localId).collect(Collectors.toSet());
     }
 
     public Set<Integer> grantingVoters() {
@@ -300,12 +340,13 @@ public class LeaderState implements EpochState {
 
         @Override
         public String toString() {
-            return "ReplicaState(" +
-                "nodeId=" + nodeId +
-                ", endOffset=" + endOffset +
-                ", lastFetchTimestamp=" + lastFetchTimestamp +
-                ", hasAcknowledgedLeader=" + hasAcknowledgedLeader +
-                ')';
+            return String.format(
+                "ReplicaState(nodeId=%s, endOffset=%s, lastFetchTimestamp=%s, hasAcknowledgedLeader=%s)",
+                nodeId,
+                endOffset,
+                lastFetchTimestamp,
+                hasAcknowledgedLeader 
+            );
         }
     }
 
@@ -318,11 +359,14 @@ public class LeaderState implements EpochState {
 
     @Override
     public String toString() {
-        return "Leader(" +
-            "localId=" + localId +
-            ", epoch=" + epoch +
-            ", epochStartOffset=" + epochStartOffset +
-            ')';
+        return String.format(
+            "Leader(localId=%s, epoch=%s, epochStartOffset=%s, highWatermark=%s, voterStates=%s)",
+            localId,
+            epoch,
+            epochStartOffset,
+            highWatermark,
+            voterStates
+        );
     }
 
     @Override
@@ -331,6 +375,8 @@ public class LeaderState implements EpochState {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        accumulator.close();
+    }
 
 }

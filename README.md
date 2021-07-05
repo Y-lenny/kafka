@@ -4,7 +4,7 @@ See our [web site](https://kafka.apache.org) for details on the project.
 
 You need to have [Java](http://www.oracle.com/technetwork/java/javase/downloads/index.html) installed.
 
-We build and test Apache Kafka with Java 8, 11 and 15. We set the `release` parameter in javac and scalac
+We build and test Apache Kafka with Java 8, 11 and 16. We set the `release` parameter in javac and scalac
 to `8` to ensure the generated binaries are compatible with Java 8 or higher (independently of the Java version
 used for compilation).
 
@@ -60,11 +60,11 @@ See [Test Retry Gradle Plugin](https://github.com/gradle/test-retry-gradle-plugi
 ### Generating test coverage reports ###
 Generate coverage reports for the whole project:
 
-    ./gradlew reportCoverage -PenableTestCoverage=true
+    ./gradlew reportCoverage -PenableTestCoverage=true -Dorg.gradle.parallel=false
 
 Generate coverage for a single module, i.e.: 
 
-    ./gradlew clients:reportCoverage -PenableTestCoverage=true
+    ./gradlew clients:reportCoverage -PenableTestCoverage=true -Dorg.gradle.parallel=false
     
 ### Building a binary release gzipped tar ball ###
     ./gradlew clean releaseTarGz

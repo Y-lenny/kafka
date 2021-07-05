@@ -1192,7 +1192,7 @@ public class RequestResponseTest {
 
     private FindCoordinatorResponse createFindCoordinatorResponse() {
         Node node = new Node(10, "host1", 2014);
-        return FindCoordinatorResponse.prepareResponse(Errors.NONE, node);
+        return FindCoordinatorResponse.prepareOldResponse(Errors.NONE, node);
     }
 
     private FetchRequest createFetchRequest(int version, FetchMetadata metadata, List<TopicPartition> toForget) {
@@ -1454,7 +1454,7 @@ public class RequestResponseTest {
                             .setMaxNumOffsets(10)
                             .setCurrentLeaderEpoch(5)));
             return ListOffsetsRequest.Builder
-                    .forConsumer(false, IsolationLevel.READ_UNCOMMITTED)
+                    .forConsumer(false, IsolationLevel.READ_UNCOMMITTED, false)
                     .setTargetTimes(Collections.singletonList(topic))
                     .build((short) version);
         } else if (version == 1) {
@@ -1465,7 +1465,7 @@ public class RequestResponseTest {
                             .setTimestamp(1000000L)
                             .setCurrentLeaderEpoch(5)));
             return ListOffsetsRequest.Builder
-                    .forConsumer(true, IsolationLevel.READ_UNCOMMITTED)
+                    .forConsumer(true, IsolationLevel.READ_UNCOMMITTED, false)
                     .setTargetTimes(Collections.singletonList(topic))
                     .build((short) version);
         } else if (version >= 2 && version <= LIST_OFFSETS.latestVersion()) {
@@ -1478,7 +1478,7 @@ public class RequestResponseTest {
                     .setName("test")
                     .setPartitions(Arrays.asList(partition));
             return ListOffsetsRequest.Builder
-                    .forConsumer(true, IsolationLevel.READ_COMMITTED)
+                    .forConsumer(true, IsolationLevel.READ_COMMITTED, false)
                     .setTargetTimes(Collections.singletonList(topic))
                     .build((short) version);
         } else {
@@ -2118,8 +2118,7 @@ public class RequestResponseTest {
                 "groupId",
                 21L,
                 (short) 42,
-                offsets,
-                false).build();
+                offsets).build();
         } else {
             return new TxnOffsetCommitRequest.Builder("transactionalId",
                 "groupId",
@@ -2128,8 +2127,7 @@ public class RequestResponseTest {
                 offsets,
                 "member",
                 2,
-                Optional.of("instance"),
-                false).build();
+                Optional.of("instance")).build();
         }
     }
 
@@ -2147,8 +2145,7 @@ public class RequestResponseTest {
             offsets,
             "member",
             2,
-            Optional.of("instance"),
-            true).build();
+            Optional.of("instance")).build();
     }
 
     private TxnOffsetCommitResponse createTxnOffsetCommitResponse() {
